@@ -1,0 +1,143 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User role inside their tenant
+// (Note: SQLite does not support native enums, Prisma handles this at the application layer)
+model Tenant {
+  id           String        @id @default(uuid())
+  name         String        // e.g., "Metro Park"
+  slug         String        @unique // e.g., "metro-park"
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  users        User[]
+  parkingLots  ParkingLot[]
+  pricingRules PricingRule[]
+  tickets      Ticket[]
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  role         String        @default("CUSTOMER") // "ADMIN", "ATTENDANT", "CUSTOMER"
+  
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  // Relations
+  checkedInTickets  Ticket[] @relation("EntryAttendant")
+  checkedOutTickets Ticket[] @relation("ExitAttendant")
+  reservations      Reservation[]
+  tickets           Ticket[] @relation("CustomerTickets")
+}
+
+model ParkingLot {
+  id        String         @id @default(uuid())
+  name      String         // e.g. "Main Garage", "North Lot"
+  location  String
+  
+  tenantId  String
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  floors    ParkingFloor[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model ParkingFloor {
+  id          String        @id @default(uuid())
+  floorNumber Int
+  parkingLotId String
+  parkingLot  ParkingLot    @relation(fields: [parkingLotId], references: [id], onDelete: Cascade)
+  slots       ParkingSlot[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([parkingLotId, floorNumber])
+}
+
+model ParkingSlot {
+  id           String        @id @default(uuid())
+  slotNumber   String        // e.g. "A-12", "F2-04"
+  slotType     String        @default("MEDIUM") // "SMALL", "MEDIUM", "LARGE", "EV"
+  status       String        @default("AVAILABLE") // "AVAILABLE", "OCCUPIED", "RESERVED", "MAINTENANCE"
+  floorId      String
+  floor        ParkingFloor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([floorId, slotNumber])
+}
+
+model PricingRule {
+  id              String   @id @default(uuid())
+  vehicleType     String   // "SMALL", "MEDIUM", "LARGE", "EV"
+  baseRate        Float    // Fee for first hour or entry
+  hourlyRate      Float    // Fee per hour after base rate
+  peakMultiplier  Float    @default(1.0)
+  
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, vehicleType])
+}
+
+model Ticket {
+  id             String        @id @default(uuid())
+  ticketNumber   String        @unique // Generated readable identifier e.g., PK-2026-XXXXXX
+  vehicleNumber  String        // Plate number
+  vehicleType    String        @default("MEDIUM") // "SMALL", "MEDIUM", "LARGE", "EV"
+  entryTime      DateTime      @default(now())
+  exitTime       DateTime?
+  status         String        @default("ACTIVE") // "ACTIVE", "PAID", "CANCELLED"
+  totalFee       Float?
+  paymentStatus  String        @default("PENDING") // "PENDING", "PAID"
+  paymentMethod  String?       // "CASH", "CARD", "WALLET"
+  
+  tenantId       String
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  slotId         String
+  slot           ParkingSlot   @relation(fields: [slotId], references: [id])
+  
+  attendantId    String?       // Attendant who processed entry
+  attendant      User?         @relation("EntryAttendant", fields: [attendantId], references: [id])
+  
+  exitAttendantId String?      // Attendant who processed exit
+  exitAttendant  User?         @relation("ExitAttendant", fields: [exitAttendantId], references: [id])
+  
+  customerId     String?       // Customer associated
+  customer       User?         @relation("CustomerTickets", fields: [customerId], references: [id])
+  
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Reservation {
+  id           String            @id @default(uuid())
+  customerId   String
+  customer     User              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  slotId       String
+  slot         ParkingSlot       @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  startTime    DateTime
+  endTime      DateTime
+  status       String            @default("PENDING") // "PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
