@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
-import prisma from "@/lib/db";
+import { getTenantFloorsAndSlots, getSlotWithFloor } from "@/lib/services/slotService";
+import { getCustomerTickets } from "@/lib/services/ticketService";
+import { getCustomerReservations } from "@/lib/services/reservationService";
 import { getCurrentUser, createReservation } from "@/lib/actions";
 import { formatCurrency, formatDisplayDate } from "@/lib/utils";
-import { CalendarRange, Info, Clock, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { CalendarRange, Clock, CheckCircle2, AlertCircle, X } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
@@ -24,53 +26,17 @@ export default async function CustomerDashboardPage({
   }
 
   // 2. Fetch Floors & Slots for visual mapping
-  const floors = await prisma.parkingFloor.findMany({
-    where: {
-      parkingLot: { tenantId: user.tenantId },
-    },
-    include: {
-      slots: {
-        orderBy: { slotNumber: "asc" },
-      },
-    },
-    orderBy: { floorNumber: "asc" },
-  });
+  const floors = await getTenantFloorsAndSlots(user.tenantId);
 
   // 3. Fetch User's Tickets & Reservations
-  const tickets = await prisma.ticket.findMany({
-    where: {
-      customerId: user.userId,
-      tenantId: user.tenantId,
-    },
-    include: {
-      slot: true,
-    },
-    orderBy: { entryTime: "desc" },
-  });
+  const tickets = await getCustomerTickets(user.tenantId, user.userId);
 
-  const reservations = await prisma.reservation.findMany({
-    where: {
-      customerId: user.userId,
-    },
-    include: {
-      slot: {
-        include: {
-          floor: true,
-        },
-      },
-    },
-    orderBy: { startTime: "desc" },
-  });
+  const reservations = await getCustomerReservations(user.userId);
 
   // 4. Fetch details of selected slot if booking modal open
   let selectedSlot = null;
   if (slotId) {
-    selectedSlot = await prisma.parkingSlot.findUnique({
-      where: { id: slotId },
-      include: {
-        floor: true,
-      },
-    });
+    selectedSlot = await getSlotWithFloor(slotId);
   }
 
   // 5. Server Action wrapper for booking submit
@@ -208,7 +174,7 @@ export default async function CustomerDashboardPage({
               🗺️ Interactive Parking Layout
             </h3>
             <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
-              Click any green "Available" slot to book it in advance.
+              Click any green &quot;Available&quot; slot to book it in advance.
             </p>
           </div>
 

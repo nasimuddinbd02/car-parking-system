@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import prisma from "@/lib/db";
+import { getTenantWithOrderedStructure } from "@/lib/services/tenantService";
+import { getTenantPaidTicketsInDateRange } from "@/lib/services/ticketService";
 import { getCurrentUser, toggleSlotMaintenance, updatePricingRule } from "@/lib/actions";
 import { formatCurrency } from "@/lib/utils";
-import { Activity, CircleDollarSign, Compass, Settings, AlertTriangle, Eye } from "lucide-react";
-import Link from "next/link";
+import { Activity, CircleDollarSign, Compass, Settings, AlertTriangle } from "lucide-react";
 
 export default async function AdminDashboardPage({
   params,
@@ -20,44 +20,21 @@ export default async function AdminDashboardPage({
   }
 
   // 2. Fetch Tenant structure (Lots, Floors, Slots, Pricing)
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: user.tenantId },
-    include: {
-      parkingLots: {
-        include: {
-          floors: {
-            include: {
-              slots: {
-                orderBy: { slotNumber: "asc" },
-              },
-            },
-            orderBy: { floorNumber: "asc" },
-          },
-        },
-      },
-      pricingRules: {
-        orderBy: { vehicleType: "asc" },
-      },
-    },
-  });
+  const tenant = await getTenantWithOrderedStructure(user.tenantId);
 
   if (!tenant) return <div>Tenant not found.</div>;
 
   // 3. Aggregate stats
   let totalSlotsCount = 0;
   let occupiedSlotsCount = 0;
-  let maintenanceSlotsCount = 0;
   let availableSlotsCount = 0;
 
-  const allSlots: any[] = [];
   tenant.parkingLots.forEach((lot) => {
     lot.floors.forEach((floor) => {
       floor.slots.forEach((slot) => {
-        allSlots.push(slot);
         totalSlotsCount++;
         if (slot.status === "OCCUPIED") occupiedSlotsCount++;
-        else if (slot.status === "MAINTENANCE") maintenanceSlotsCount++;
-        else availableSlotsCount++;
+        else if (slot.status !== "MAINTENANCE") availableSlotsCount++;
       });
     });
   });
@@ -68,17 +45,7 @@ export default async function AdminDashboardPage({
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
-  const todayPaidTickets = await prisma.ticket.findMany({
-    where: {
-      tenantId: user.tenantId,
-      status: "PAID",
-      exitTime: {
-        gte: startOfToday,
-        lte: endOfToday,
-      },
-    },
-    select: { totalFee: true },
-  });
+  const todayPaidTickets = await getTenantPaidTicketsInDateRange(user.tenantId, startOfToday, endOfToday);
 
   const todayRevenue = todayPaidTickets.reduce((sum, t) => sum + (t.totalFee || 0), 0);
 
@@ -112,7 +79,7 @@ export default async function AdminDashboardPage({
           </div>
           <div>
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>
-              Today's Earnings
+              Today&apos;s Earnings
             </span>
             <h3 style={{ fontSize: "1.5rem", fontWeight: 800 }}>{formatCurrency(todayRevenue)}</h3>
           </div>

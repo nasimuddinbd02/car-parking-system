@@ -1,8 +1,8 @@
-import prisma from "@/lib/db";
+import { getTenantWithStructureAndRules } from "@/lib/services/tenantService";
 import Link from "next/link";
 import { formatCurrency, formatDurationText, formatDisplayDate } from "@/lib/utils";
 import { searchActiveTicket } from "@/lib/actions";
-import { ParkingCircle, Car, BatteryCharging, ShieldCheck, Search, ClipboardList } from "lucide-react";
+import { Car, BatteryCharging, Search } from "lucide-react";
 
 export default async function TenantPublicPage({
   params,
@@ -15,21 +15,7 @@ export default async function TenantPublicPage({
   const { plate } = await searchParams;
 
   // 1. Fetch Tenant data
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: tenantSlug },
-    include: {
-      parkingLots: {
-        include: {
-          floors: {
-            include: {
-              slots: true,
-            },
-          },
-        },
-      },
-      pricingRules: true,
-    },
-  });
+  const tenant = await getTenantWithStructureAndRules(tenantSlug);
 
   if (!tenant) return <div>Tenant Not Found</div>;
 
@@ -127,7 +113,6 @@ export default async function TenantPublicPage({
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {Object.keys(slotTypeStats).map((type) => {
                 const stat = slotTypeStats[type];
-                const pct = Math.round((stat.free / (stat.total || 1)) * 100);
                 
                 return (
                   <div key={type} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
@@ -243,6 +228,6 @@ export default async function TenantPublicPage({
 }
 
 // Simple wrapper to safely create Dates
-function newchedDate(dateInput: any): Date {
+function newchedDate(dateInput: string | number | Date): Date {
   return new Date(dateInput);
 }

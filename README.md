@@ -15,6 +15,23 @@ The system enables parking companies (tenants) to register their workspace, desi
 
 ---
 
+## 🏗️ Application Architecture (Three-Tier Layer)
+
+The project implements a clean three-tier architecture to decouple layout/presentation logic, business validations, and direct database querying operations:
+
+```mermaid
+graph TD
+    UI["UI / Presentation Layer<br>(Pages, Server Actions, Layouts)"] -->|invokes| Services["Business Service Layer<br>(src/lib/services/*)"]
+    Services -->|delegates to| DataAccess["Data Access Layer<br>(src/lib/data-access/*)"]
+    DataAccess -->|queries / mutations| DB[("SQLite Database<br>(Prisma Client)")]
+```
+
+1. **Presentation / UI Layer (`src/app/`, `src/lib/actions.ts`)**: Decoupled server page controllers, layout templates, and client-facing Server Actions. They orchestrate views and process interactions by calling service methods. They have no direct Prisma client imports.
+2. **Business Service Layer (`src/lib/services/`)**: Encapsulates business validation rules, sanitization, default definitions, fallback lookup heuristics (such as matching vehicle sizes to slot capabilities), and orchestrates multi-step processes.
+3. **Data Access Layer (`src/lib/data-access/`)**: Contains raw Prisma database reads, writes, updates, and database-level transactional operations. Function names employ descriptive domain verbs (`findTenantBySlug`, `checkInTicketTransaction`, `updatePricingRule`) and keep queries highly decoupled from service-level business choices.
+
+---
+
 ## 📊 Database Design (Visual ERD)
 
 Below is the complete database model representation. Since the database layer is implemented using SQLite (which does not natively support enum types), data constraints are enforced at the application layer via Prisma schema validations and server-side forms.

@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import prisma from "@/lib/db";
+import { getTenantBySlug } from "@/lib/services/tenantService";
 import ThemeToggle from "@/components/ThemeToggle";
 import { getCurrentUser, logoutUser } from "@/lib/actions";
 import Link from "next/link";
@@ -15,9 +15,7 @@ export default async function TenantLayout({
   const { tenantSlug } = await params;
 
   // 1. Verify tenant exists in the database
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: tenantSlug },
-  });
+  const tenant = await getTenantBySlug(tenantSlug);
 
   if (!tenant) {
     notFound();

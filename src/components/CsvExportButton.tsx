@@ -2,7 +2,7 @@
 
 import { Download } from "lucide-react";
 
-interface TicketRow {
+export interface TicketRow {
   ticketNumber: string;
   vehicleNumber: string;
   vehicleType: string;

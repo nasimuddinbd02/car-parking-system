@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import prisma from "@/lib/db";
 import { getCurrentUser, getEarningsReport } from "@/lib/actions";
 import { formatCurrency, formatDisplayDate } from "@/lib/utils";
-import CsvExportButton from "@/components/CsvExportButton";
+import CsvExportButton, { TicketRow } from "@/components/CsvExportButton";
 import PrintButton from "@/components/PrintButton";
 import ReportFilterForm from "@/components/ReportFilterForm";
 import Link from "next/link";
@@ -74,7 +73,7 @@ export default async function ReportsPage({
           <PrintButton />
 
           <CsvExportButton
-            data={tickets as any}
+            data={tickets as TicketRow[]}
             filename={`${tenantSlug}-report-${selectedRange}-${selectedDate}`}
           />
         </div>

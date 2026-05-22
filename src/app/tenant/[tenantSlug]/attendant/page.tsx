@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import prisma from "@/lib/db";
+import { getTenantFloorsAndSlots } from "@/lib/services/slotService";
+import { getActiveTicketsByTenant } from "@/lib/services/ticketService";
 import { getCurrentUser, checkInVehicle, searchActiveTicket, processCheckOut } from "@/lib/actions";
 import { formatCurrency, formatDisplayDate, formatDurationText } from "@/lib/utils";
-import { Building2, Search, ArrowRight, UserCheck, AlertCircle, FileText, CheckCircle2 } from "lucide-react";
+import { Search, AlertCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
@@ -25,28 +25,9 @@ export default async function AttendantPage({
   }
 
   // 2. Query all slots and active tickets to populate dashboard lists
-  const floors = await prisma.parkingFloor.findMany({
-    where: {
-      parkingLot: { tenantId: user.tenantId },
-    },
-    include: {
-      slots: {
-        orderBy: { slotNumber: "asc" },
-      },
-    },
-    orderBy: { floorNumber: "asc" },
-  });
+  const floors = await getTenantFloorsAndSlots(user.tenantId);
 
-  const activeTickets = await prisma.ticket.findMany({
-    where: {
-      tenantId: user.tenantId,
-      status: "ACTIVE",
-    },
-    include: {
-      slot: true,
-    },
-    orderBy: { entryTime: "desc" },
-  });
+  const activeTickets = await getActiveTicketsByTenant(user.tenantId);
 
   // 3. Handle Plate/Ticket Search Query
   let foundTicketResult = null;

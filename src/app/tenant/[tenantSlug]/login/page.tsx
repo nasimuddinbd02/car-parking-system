@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { loginUser } from "@/lib/actions";
-import { Shield, User, ArrowRight, UserCheck } from "lucide-react";
+import { Shield, ArrowRight, UserCheck } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -160,7 +160,7 @@ export default function LoginPage() {
             <UserCheck size={16} style={{ color: "var(--warning)" }} /> Demo Account Simulation
           </h4>
           <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
-            Click any role to load mock credentials, then click "Sign In":
+            Click any role to load mock credentials, then click &quot;Sign In&quot;:
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>

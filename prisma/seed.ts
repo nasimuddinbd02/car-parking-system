@@ -39,7 +39,7 @@ async function main() {
 
   // 3. Create Users
   // Tenant 1 Users
-  const t1Admin = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "Metropolis Admin",
       email: "admin@metro.com",
@@ -59,7 +59,7 @@ async function main() {
     },
   });
 
-  const t1Customer = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "Sarah Driver",
       email: "driver@metro.com",
@@ -70,7 +70,7 @@ async function main() {
   });
 
   // Tenant 2 Users
-  const t2Admin = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "Apex Admin",
       email: "admin@apex.com",
@@ -80,7 +80,7 @@ async function main() {
     },
   });
 
-  const t2Attendant = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "David Attendant",
       email: "att1@apex.com",
