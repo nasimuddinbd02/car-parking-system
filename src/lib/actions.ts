@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { hashPassword, generateTicketNumber, calculateParkingFee } from "@/lib/utils";
+import { encryptSession, decryptSession } from "./session";
 
 // Import Services
 import {
@@ -46,18 +47,14 @@ export async function getCurrentUser() {
   const cookieStore = await cookies();
   const session = cookieStore.get("session");
   if (!session) return null;
-  try {
-    return JSON.parse(session.value) as {
-      userId: string;
-      name: string;
-      email: string;
-      role: string;
-      tenantId: string;
-      tenantSlug: string;
-    };
-  } catch {
-    return null;
-  }
+  return decryptSession(session.value) as {
+    userId: string;
+    name: string;
+    email: string;
+    role: string;
+    tenantId: string;
+    tenantSlug: string;
+  } | null;
 }
 
 export async function logoutUser() {
@@ -94,7 +91,7 @@ export async function loginUser(email: string, passwordPlain: string, tenantSlug
     };
 
     const cookieStore = await cookies();
-    cookieStore.set("session", JSON.stringify(sessionData), {
+    cookieStore.set("session", encryptSession(sessionData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
@@ -151,7 +148,7 @@ export async function registerTenant(
     };
 
     const cookieStore = await cookies();
-    cookieStore.set("session", JSON.stringify(sessionData), {
+    cookieStore.set("session", encryptSession(sessionData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
