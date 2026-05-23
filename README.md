@@ -244,6 +244,17 @@ Advanced parking reservations created by customers.
 
 ---
 
+## 🎨 Redesigned Premium Dashboard UI
+
+The tenant-specific dashboard boards under `/tenant/[tenantSlug]` feature a premium, cohesive glassmorphic design theme:
+
+* **Admin Cockpit (`/admin`)**: Interactive slot layout mapping statuses with visual toggles for administrative maintenance, custom tooltips, EV slot `BatteryCharging` icon support, and live occupancy rates.
+* **Financial Reports (`/admin/reports`)**: Real-time auditing panel with date interval filters, circular or horizontal progress bar metrics for vehicle and payment distributions, printable invoice sheets, and clean CSV export capabilities.
+* **Gate Attendant Board (`/attendant`)**: Terminal entry/exit check-in dashboards complete with a virtual ticket checkout stub receipt, punch holes, active time calculations, barcodes, and current parked car ledgers.
+* **Driver Customer Portal (`/customer`)**: Interactive visual slot maps with real-time availability filters, datetime booking overlay modals, reservation trackers, and ticket history logs.
+
+---
+
 ## 🚀 Running the App
 
 ### Start Development Server
@@ -262,14 +273,15 @@ npm start
 
 ## 🧪 Testing and Verification
 
-To verify the dynamic multi-tenant routes and E2E gates, you can use the archived verification scripts inside the brain's scratch folder:
+To verify the routes, authorization states, and E2E gate flow simulation checks, run the local scripts:
 
 * **Basic Page Integrity Checks**:
   ```bash
-  npx tsx C:\Users\User\.gemini\antigravity\brain\22719528-cdaf-4bda-a033-ad012a72a745\scratch\test-pages.ts
+  npx tsx scratch/test-pages.ts
   ```
 
 * **Full Gate Check-In & Check-Out E2E Simulation**:
   ```bash
-  npx tsx C:\Users\User\.gemini\antigravity\brain\22719528-cdaf-4bda-a033-ad012a72a745\scratch\test-e2e-flow.ts
+  npx tsx scratch/test-e2e-flow.ts
   ```
+
