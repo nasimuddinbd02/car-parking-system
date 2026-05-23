@@ -1,4 +1,13 @@
 import * as crypto from "crypto";
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+/**
+ * Shadcn UI utility class merger.
+ */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
 
 /**
  * Node native SHA256 password hashing.

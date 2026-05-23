@@ -1,0 +1,5 @@
+{
+  "artifactType": "ARTIFACT_TYPE_OTHER",
+  "summary": "Updated E2E verification script to use /tenant/ instead of /t/ for routing checks",
+  "updatedAt": "2026-05-22T17:23:25.763378300Z"
+}
