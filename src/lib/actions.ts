@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { hashPassword, generateTicketNumber, calculateParkingFee } from "@/lib/utils";
 import { encryptSession, decryptSession } from "./session";
+import { logger } from "@/lib/logger";
 
 // Import Services
 import {
@@ -58,6 +59,14 @@ export async function getCurrentUser() {
 }
 
 export async function logoutUser() {
+  try {
+    const user = await getCurrentUser();
+    if (user) {
+      logger.info("User logged out", { email: user.email, role: user.role, tenantSlug: user.tenantSlug });
+    }
+  } catch {
+    // Ignore context errors during logout check
+  }
   const cookieStore = await cookies();
   cookieStore.delete("session");
   return { success: true };
@@ -71,6 +80,7 @@ export async function loginUser(email: string, passwordPlain: string, tenantSlug
     const tenant = await getTenantBySlug(tenantSlug);
 
     if (!tenant) {
+      logger.warn("Failed login attempt: Tenant not found", { email, tenantSlug });
       return { success: false, error: "Company workspace not found." };
     }
 
@@ -78,6 +88,7 @@ export async function loginUser(email: string, passwordPlain: string, tenantSlug
     const user = await getUserByCredentialsAndTenant(email, hashed, tenant.id);
 
     if (!user) {
+      logger.warn("Failed login attempt: Invalid credentials", { email, tenantId: tenant.id, tenantSlug });
       return { success: false, error: "Invalid email or password." };
     }
 
@@ -98,8 +109,10 @@ export async function loginUser(email: string, passwordPlain: string, tenantSlug
       maxAge: 60 * 60 * 24, // 1 day
     });
 
+    logger.info("User successfully logged in", { email: user.email, role: user.role, tenantSlug });
     return { success: true, user: sessionData };
   } catch (error: unknown) {
+    logger.error(`Exception during login for ${email}`, error);
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -117,12 +130,14 @@ export async function registerTenant(
     // Check if slug is taken
     const existingTenant = await getTenantBySlug(cleanSlug);
     if (existingTenant) {
+      logger.warn("Tenant registration failed: Slug already taken", { companyName, slug: cleanSlug });
       return { success: false, error: "Slug is already taken by another company." };
     }
 
     // Check if admin email is globally unique
     const existingUser = await getUserByEmail(adminEmail);
     if (existingUser) {
+      logger.warn("Tenant registration failed: Email already registered", { companyName, adminEmail });
       return { success: false, error: "User email already registered." };
     }
 
@@ -155,8 +170,10 @@ export async function registerTenant(
       maxAge: 60 * 60 * 24,
     });
 
+    logger.info("New tenant and admin registered successfully", { companyName, slug: cleanSlug, adminEmail });
     return { success: true, tenantSlug: result.tenant.slug };
   } catch (error: unknown) {
+    logger.error("Exception during tenant registration", error);
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -172,10 +189,13 @@ export async function checkInVehicle(
   attendantId: string
 ) {
   try {
+    logger.info("Initiating vehicle check-in", { tenantId, vehicleNumber, vehicleType, attendantId });
+    
     // 1. Find an available slot
     const slot = await findAvailableSlotForVehicle(tenantId, vehicleType);
 
     if (!slot) {
+      logger.warn("Vehicle check-in failed: No available slots", { tenantId, vehicleNumber, vehicleType });
       return { success: false, error: `No available slots remaining for ${vehicleType} size.` };
     }
 
@@ -191,8 +211,10 @@ export async function checkInVehicle(
       attendantId
     );
 
+    logger.info("Vehicle check-in successful", { ticketNumber: ticket.ticketNumber, vehicleNumber, slotId: slot.id });
     return { success: true, ticket };
   } catch (error: unknown) {
+    logger.error("Exception during vehicle check-in", error);
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -232,9 +254,12 @@ export async function processCheckOut(
   tenantId: string
 ) {
   try {
+    logger.info("Initiating vehicle check-out", { ticketId, paymentMethod, attendantId, tenantId });
+    
     const ticket = await getTicketById(ticketId);
 
     if (!ticket || ticket.status !== "ACTIVE" || ticket.tenantId !== tenantId) {
+      logger.warn("Vehicle check-out failed: Ticket not active or invalid context", { ticketId, tenantId });
       return { success: false, error: "Ticket not found or already checked out." };
     }
 
@@ -258,8 +283,10 @@ export async function processCheckOut(
       attendantId
     );
 
+    logger.info("Vehicle check-out successful", { ticketId, totalFee: feeDetails.totalFee, paymentMethod });
     return { success: true };
   } catch (error: unknown) {
+    logger.error("Exception during vehicle check-out", error);
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -271,9 +298,11 @@ export async function processCheckOut(
 export async function toggleSlotMaintenance(slotId: string, currentStatus: string) {
   try {
     const newStatus = currentStatus === "MAINTENANCE" ? "AVAILABLE" : "MAINTENANCE";
+    logger.info("Toggling slot maintenance status", { slotId, currentStatus, newStatus });
     await updateSlotStatus(slotId, newStatus);
     return { success: true };
   } catch (error: unknown) {
+    logger.error("Exception during toggling slot maintenance status", error);
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -285,9 +314,11 @@ export async function updatePricingRule(
   peakMultiplier: number
 ) {
   try {
+    logger.info("Updating vehicle pricing rule tariffs", { ruleId, baseRate, hourlyRate, peakMultiplier });
     await serviceUpdatePricingRule(ruleId, baseRate, hourlyRate, peakMultiplier);
     return { success: true };
   } catch (error: unknown) {
+    logger.error("Exception during updating pricing rule tariffs", error);
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -392,17 +423,22 @@ export async function createReservation(
   endTime: Date
 ) {
   try {
+    logger.info("Initiating slot reservation booking", { tenantId, customerId, slotId, startTime, endTime });
+    
     // Check if slot has conflicting reservations via service
     const conflicting = await findConflictingReservation(slotId, startTime, endTime);
 
     if (conflicting) {
+      logger.warn("Reservation booking failed: Conflicting slot reservation exists", { slotId, startTime, endTime });
       return { success: false, error: "This slot is already reserved for the selected time window." };
     }
 
     const reservation = await serviceCreateReservation(customerId, slotId, startTime, endTime);
 
+    logger.info("Reservation booking successful", { reservationId: reservation.id, customerId, slotId });
     return { success: true, reservation };
   } catch (error: unknown) {
+    logger.error("Exception during slot reservation", error);
     return { success: false, error: getErrorMessage(error) };
   }
 }

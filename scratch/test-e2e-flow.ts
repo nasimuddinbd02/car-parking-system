@@ -356,9 +356,12 @@ async function runE2ETests() {
     // ----------------------------------------------------
     console.log("\n--- Scenario 8: Financial Reports Cockpit ---");
 
-    // Fetch reports page with daily filter for today
-    const todayStr = exitTime.toISOString().split("T")[0];
-    const reportsPage = await testPage(`${base}/tenant/metro-park/admin/reports?rangeType=daily&dateString=${todayStr}`, adminCookie);
+    // Fetch reports page with daily filter for today using correct query params and local date
+    const localYear = exitTime.getFullYear();
+    const localMonth = String(exitTime.getMonth() + 1).padStart(2, "0");
+    const localDay = String(exitTime.getDate()).padStart(2, "0");
+    const localDateStr = `${localYear}-${localMonth}-${localDay}`;
+    const reportsPage = await testPage(`${base}/tenant/metro-park/admin/reports?range=daily&date=${localDateStr}`, adminCookie);
     
     assertCondition(
       "Reports Panel loads successfully under authorization",
