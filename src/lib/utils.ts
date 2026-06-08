@@ -10,10 +10,34 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Node native SHA256 password hashing.
+ * Salted scrypt password hashing using Node's native crypto.
+ *
+ * Returns a self-describing string of the form `scrypt$<saltHex>$<keyHex>`.
+ * A fresh random salt is generated per call, so identical passwords produce
+ * different hashes and stored hashes can never be matched by equality.
  */
+const SCRYPT_KEYLEN = 64;
+const SCRYPT_SALT_BYTES = 16;
+
 export function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
+  const salt = crypto.randomBytes(SCRYPT_SALT_BYTES).toString("hex");
+  const derivedKey = crypto.scryptSync(password, salt, SCRYPT_KEYLEN).toString("hex");
+  return `scrypt$${salt}$${derivedKey}`;
+}
+
+/**
+ * Verify a plaintext password against a stored scrypt hash produced by
+ * {@link hashPassword}. Uses a constant-time comparison to avoid timing leaks.
+ */
+export function verifyPassword(password: string, storedHash: string): boolean {
+  const parts = storedHash.split("$");
+  if (parts.length !== 3 || parts[0] !== "scrypt") return false;
+
+  const [, salt, keyHex] = parts;
+  const keyBuffer = Buffer.from(keyHex, "hex");
+  const derivedKey = crypto.scryptSync(password, salt, keyBuffer.length);
+
+  return keyBuffer.length === derivedKey.length && crypto.timingSafeEqual(keyBuffer, derivedKey);
 }
 
 /**

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getTenantFloorsAndSlots, getSlotWithFloor } from "@/lib/services/slotService";
 import { getCustomerTickets } from "@/lib/services/ticketService";
 import { getCustomerReservations } from "@/lib/services/reservationService";
-import { getCurrentUser, createReservation } from "@/lib/actions";
+import { getCurrentUser, createReservation, cancelReservation } from "@/lib/actions";
 import { formatCurrency, formatDisplayDate } from "@/lib/utils";
 import {
   CalendarRange,
@@ -15,7 +15,8 @@ import {
   CalendarDays,
   History,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  Ban
 } from "lucide-react";
 import Link from "next/link";
 import React from "react";
@@ -25,10 +26,10 @@ export default async function CustomerDashboardPage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ slotId?: string; success?: string; error?: string }>;
+  searchParams: Promise<{ slotId?: string; success?: string; cancelled?: string; error?: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { slotId, success, error } = await searchParams;
+  const { slotId, success, cancelled, error } = await searchParams;
 
   const user = await getCurrentUser();
 
@@ -84,6 +85,19 @@ export default async function CustomerDashboardPage({
     }
   };
 
+  // 5b. Server Action wrapper for cancelling a reservation
+  const handleCancelSubmit = async (formData: FormData) => {
+    "use server";
+    const reservationId = formData.get("reservationId") as string;
+    const res = await cancelReservation(reservationId);
+
+    if (res.success) {
+      redirect(`/tenant/${tenantSlug}/customer?cancelled=true`);
+    } else {
+      redirect(`/tenant/${tenantSlug}/customer?error=${encodeURIComponent(res.error || "Failed to cancel reservation")}`);
+    }
+  };
+
   return (
     <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: "2rem" }}>
       
@@ -123,6 +137,29 @@ export default async function CustomerDashboardPage({
             <strong style={{ fontSize: "1rem" }}>Reservation Confirmed!</strong>
             <p style={{ fontSize: "0.85rem", opacity: 0.9, margin: "0.15rem 0 0" }}>
               Your slot is successfully booked. Show your dashboard reservation ticket details at the gate entrance.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {cancelled && (
+        <div style={{
+          background: "var(--maintenance-glow)",
+          color: "var(--text-muted)",
+          border: "1px solid var(--maintenance)",
+          boxShadow: "0 0 16px var(--maintenance-glow)",
+          padding: "1.25rem",
+          borderRadius: "var(--radius-md)",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          animation: "fadeIn 0.4s ease-out"
+        }}>
+          <Ban size={24} />
+          <div>
+            <strong style={{ fontSize: "1rem", color: "var(--text-main)" }}>Reservation Cancelled</strong>
+            <p style={{ fontSize: "0.85rem", opacity: 0.9, margin: "0.15rem 0 0" }}>
+              The booking has been released and the slot is available again.
             </p>
           </div>
         </div>
@@ -336,17 +373,25 @@ export default async function CustomerDashboardPage({
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "300px", overflowY: "auto", paddingRight: "0.25rem" }}>
-                {reservations.map((res) => (
-                  <div 
-                    key={res.id} 
-                    style={{ 
-                      padding: "1rem", 
-                      background: "rgba(255,255,255,0.01)", 
-                      border: "1px solid var(--border-glass)", 
-                      borderRadius: "10px", 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      alignItems: "center" 
+                {reservations.map((res) => {
+                  const isActive = res.status === "CONFIRMED" || res.status === "PENDING";
+                  const statusBadgeClass =
+                    res.status === "CANCELLED" ? "badge-occupied" :
+                    res.status === "COMPLETED" ? "badge-maintenance" : "badge-available";
+
+                  return (
+                  <div
+                    key={res.id}
+                    style={{
+                      padding: "1rem",
+                      background: "rgba(255,255,255,0.01)",
+                      border: "1px solid var(--border-glass)",
+                      borderRadius: "10px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      opacity: isActive ? 1 : 0.6
                     }}
                   >
                     <div>
@@ -361,9 +406,25 @@ export default async function CustomerDashboardPage({
                         <span>{formatDisplayDate(res.endTime)}</span>
                       </div>
                     </div>
-                    <span className="badge badge-available" style={{ fontSize: "0.65rem", padding: "0.25rem 0.6rem" }}>{res.status}</span>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem", flexShrink: 0 }}>
+                      <span className={`badge ${statusBadgeClass}`} style={{ fontSize: "0.65rem", padding: "0.25rem 0.6rem" }}>{res.status}</span>
+                      {isActive && (
+                        <form action={handleCancelSubmit}>
+                          <input type="hidden" name="reservationId" value={res.id} />
+                          <button
+                            type="submit"
+                            className="btn btn-secondary"
+                            style={{ padding: "0.3rem 0.7rem", fontSize: "0.7rem", fontWeight: 700, borderRadius: "8px", gap: 4 }}
+                            title="Cancel this reservation"
+                          >
+                            <Ban size={12} /> Cancel
+                          </button>
+                        </form>
+                      )}
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

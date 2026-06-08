@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { hashPassword, generateTicketNumber, calculateParkingFee } from "@/lib/utils";
+import { hashPassword, verifyPassword, generateTicketNumber, calculateParkingFee } from "@/lib/utils";
 import { encryptSession, decryptSession } from "./session";
 import { logger } from "@/lib/logger";
 
@@ -12,7 +12,7 @@ import {
 } from "@/lib/services/tenantService";
 import {
   getUserByEmail,
-  getUserByCredentialsAndTenant,
+  getUserByEmailAndTenant,
 } from "@/lib/services/userService";
 import {
   findAvailableSlotForVehicle,
@@ -32,6 +32,8 @@ import {
 import {
   findConflictingReservation,
   createReservation as serviceCreateReservation,
+  getReservationById,
+  cancelReservation as serviceCancelReservation,
 } from "@/lib/services/reservationService";
 
 // Helper to safely get error message in type-safe catch blocks
@@ -74,8 +76,6 @@ export async function logoutUser() {
 
 export async function loginUser(email: string, passwordPlain: string, tenantSlug: string) {
   try {
-    const hashed = hashPassword(passwordPlain);
-    
     // Find tenant by slug
     const tenant = await getTenantBySlug(tenantSlug);
 
@@ -84,10 +84,11 @@ export async function loginUser(email: string, passwordPlain: string, tenantSlug
       return { success: false, error: "Company workspace not found." };
     }
 
-    // Find user inside that tenant
-    const user = await getUserByCredentialsAndTenant(email, hashed, tenant.id);
+    // Find user inside that tenant, then verify the password against the
+    // stored salted hash (salted hashes cannot be matched by equality).
+    const user = await getUserByEmailAndTenant(email, tenant.id);
 
-    if (!user) {
+    if (!user || !verifyPassword(passwordPlain, user.passwordHash)) {
       logger.warn("Failed login attempt: Invalid credentials", { email, tenantId: tenant.id, tenantSlug });
       return { success: false, error: "Invalid email or password." };
     }
@@ -439,6 +440,42 @@ export async function createReservation(
     return { success: true, reservation };
   } catch (error: unknown) {
     logger.error("Exception during slot reservation", error);
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+export async function cancelReservation(reservationId: string) {
+  try {
+    // Authorize: only the owning customer may cancel their reservation
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, error: "You must be signed in to cancel a reservation." };
+    }
+
+    const reservation = await getReservationById(reservationId);
+    if (!reservation) {
+      return { success: false, error: "Reservation not found." };
+    }
+
+    if (reservation.customerId !== user.userId) {
+      logger.warn("Reservation cancel denied: ownership mismatch", {
+        reservationId,
+        requestedBy: user.userId,
+        owner: reservation.customerId,
+      });
+      return { success: false, error: "You can only cancel your own reservations." };
+    }
+
+    if (reservation.status === "CANCELLED" || reservation.status === "COMPLETED") {
+      return { success: false, error: `Reservation is already ${reservation.status.toLowerCase()}.` };
+    }
+
+    await serviceCancelReservation(reservationId);
+
+    logger.info("Reservation cancelled successfully", { reservationId, customerId: user.userId });
+    return { success: true };
+  } catch (error: unknown) {
+    logger.error("Exception during reservation cancellation", error);
     return { success: false, error: getErrorMessage(error) };
   }
 }
