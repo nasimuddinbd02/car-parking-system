@@ -6,6 +6,20 @@ The system enables parking companies (tenants) to register their workspace, desi
 
 ---
 
+## 🧰 Technology Stack
+
+| Layer | Technology |
+| --- | --- |
+| Framework | **Next.js 16** (App Router, Server Actions) |
+| UI Runtime | **React 19** |
+| Language | **TypeScript 5** |
+| ORM / Database | **Prisma 5** + **SQLite** |
+| Styling | **Tailwind CSS v4**, `tw-animate-css` |
+| Components | **shadcn** / **Base UI**, **lucide-react** icons |
+| Auth & Crypto | Node `crypto` — salted **scrypt** password hashing, **AES-256-GCM** session tokens |
+
+---
+
 ## 🌟 Architectural Features
 * **Tenant Isolation**: Secure partitioning of resources (`User`, `ParkingLot`, `PricingRule`, `Ticket`, `Reservation`) by `tenantId`.
 * **Dynamic Routing**: Automatic context resolution using dynamic sub-routes: `/tenant/[tenantSlug]/...`.
@@ -173,6 +187,19 @@ Tenant data integrity is enforced by routing all entities through a root `Tenant
 
 ---
 
+## 🔐 Security Model
+
+Authentication and session handling rely entirely on Node's built-in `crypto` module — no third-party auth dependency.
+
+* **Password hashing** — Passwords are hashed with **salted scrypt** (`hashPassword` in [`src/lib/utils.ts`](src/lib/utils.ts)). Each credential gets a unique 16-byte random salt and a 64-byte derived key, stored as `scrypt$<salt>$<key>`. Verification (`verifyPassword`) recomputes the key from the stored salt and compares it in constant time with `crypto.timingSafeEqual`, so equal passwords never produce equal hashes and timing leaks are avoided.
+* **Login flow** — `loginUser` resolves the tenant by slug, fetches the user by `email + tenantId`, then verifies the supplied password against the stored hash. Failed and successful attempts are logged via the structured logger.
+* **Session tokens** — On login the session payload is sealed with **AES-256-GCM** authenticated encryption ([`src/lib/session.ts`](src/lib/session.ts)) and stored in an `httpOnly` cookie (`secure` in production, 1-day expiry). Any tampering fails the GCM auth-tag check and the session is rejected.
+* **Tenant isolation** — Every authorization decision is scoped by the `tenantId` carried in the encrypted session, preventing cross-tenant access.
+
+> ⚠️ **Production note:** Set a strong `SESSION_SECRET` (32+ characters) in your environment. A development fallback secret is used when it is unset — never rely on it in production.
+
+---
+
 ## 📋 Schema Details & Fields Reference
 
 ### 1. `Tenant`
@@ -222,8 +249,16 @@ Advanced parking reservations created by customers.
 ## 🛠️ Getting Started & Local Setup
 
 ### Prerequisites
-* **Node.js**: v18.x or above (v20+ recommended).
+* **Node.js**: v20.9 or above (required by Next.js 16).
 * **SQLite**: Embedded database (no external installation required).
+
+### Environment Variables
+
+The SQLite connection string is defined directly in `prisma/schema.prisma` (`file:./dev.db`), so no `.env` is required to get started. For anything beyond local development, set:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `SESSION_SECRET` | Production | Secret (32+ chars) used to derive the AES-256-GCM session key. Falls back to an insecure development default if unset. |
 
 ### Installation
 
@@ -232,15 +267,28 @@ Advanced parking reservations created by customers.
    npm install
    ```
 
-2. Initialize and migrate the local SQLite database:
+2. Apply the database migrations to create the local SQLite schema:
    ```bash
-   npx prisma migrate dev --name init
+   npx prisma migrate dev
    ```
 
 3. Seed the database with default tenants, users, layouts, and pricing:
    ```bash
    npx prisma db seed
    ```
+   > `prisma migrate dev` runs the seed automatically on a fresh database; run this step manually whenever you want to reset the demo data.
+
+### Demo Accounts
+
+The seed script provisions two tenant workspaces. Sign in at `/tenant/<slug>/login` (the login page also offers one-click "Demo Account Simulation" buttons).
+
+| Tenant (slug) | Role | Email | Password |
+| --- | --- | --- | --- |
+| Metropolis Plaza Parking (`metro-park`) | Admin | `admin@metro.com` | `admin123` |
+| Metropolis Plaza Parking (`metro-park`) | Attendant | `att1@metro.com` | `att123` |
+| Metropolis Plaza Parking (`metro-park`) | Customer | `driver@metro.com` | `driver123` |
+| Apex Mall Parking (`apex-park`) | Admin | `admin@apex.com` | `admin123` |
+| Apex Mall Parking (`apex-park`) | Attendant | `att1@apex.com` | `att123` |
 
 ---
 

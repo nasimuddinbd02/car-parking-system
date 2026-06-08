@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { loginUser } from "@/lib/actions";
 import { Shield, ArrowRight, UserCheck, Lock, Mail, Crown, Briefcase, Car } from "lucide-react";
@@ -14,26 +14,39 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guard against duplicate submissions (autofill re-fire, double-click,
+  // Enter + click). State updates are async, so a ref is the reliable gate.
+  const submitting = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setLoading(true);
     setError(null);
 
-    const res = await loginUser(email, password, tenantSlug);
+    try {
+      const res = await loginUser(email, password, tenantSlug);
 
-    if (res.success && res.user) {
-      const role = res.user.role;
-      if (role === "ADMIN") {
-        router.push(`/tenant/${tenantSlug}/admin`);
-      } else if (role === "ATTENDANT") {
-        router.push(`/tenant/${tenantSlug}/attendant`);
+      if (res.success && res.user) {
+        const role = res.user.role;
+        if (role === "ADMIN") {
+          router.push(`/tenant/${tenantSlug}/admin`);
+        } else if (role === "ATTENDANT") {
+          router.push(`/tenant/${tenantSlug}/attendant`);
+        } else {
+          router.push(`/tenant/${tenantSlug}/customer`);
+        }
+        // Keep the form locked while the redirect navigates away.
       } else {
-        router.push(`/tenant/${tenantSlug}/customer`);
+        setError(res.error || "Login failed.");
+        setLoading(false);
+        submitting.current = false;
       }
-    } else {
-      setError(res.error || "Login failed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed.");
       setLoading(false);
+      submitting.current = false;
     }
   };
 

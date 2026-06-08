@@ -3,8 +3,11 @@ import * as crypto from "crypto";
 
 const prisma = new PrismaClient();
 
+// Salted scrypt hashing — must match hashPassword() in src/lib/utils.ts.
 function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `scrypt$${salt}$${derivedKey}`;
 }
 
 async function main() {

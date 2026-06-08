@@ -59,3 +59,16 @@ export async function createReservation(
     },
   });
 }
+
+export async function findReservationById(reservationId: string) {
+  return prisma.reservation.findUnique({
+    where: { id: reservationId },
+  });
+}
+
+export async function setReservationStatus(reservationId: string, status: string) {
+  return prisma.reservation.update({
+    where: { id: reservationId },
+    data: { status },
+  });
+}

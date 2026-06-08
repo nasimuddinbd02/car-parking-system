@@ -2,6 +2,8 @@ import {
   findCustomerReservations,
   findConflictingReservation as dbFindConflictingReservation,
   createReservation as dbCreateReservation,
+  findReservationById,
+  setReservationStatus,
 } from "@/lib/data-access/reservation";
 
 export async function getCustomerReservations(customerId: string) {
@@ -23,4 +25,12 @@ export async function createReservation(
   endTime: Date
 ) {
   return dbCreateReservation(customerId, slotId, startTime, endTime);
+}
+
+export async function getReservationById(reservationId: string) {
+  return findReservationById(reservationId);
+}
+
+export async function cancelReservation(reservationId: string) {
+  return setReservationStatus(reservationId, "CANCELLED");
 }

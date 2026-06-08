@@ -6,15 +6,10 @@ export async function findUserByEmail(email: string) {
   });
 }
 
-export async function findUserByCredentialsAndTenant(
-  email: string,
-  passwordHash: string,
-  tenantId: string
-) {
+export async function findUserByEmailAndTenant(email: string, tenantId: string) {
   return prisma.user.findFirst({
     where: {
       email,
-      passwordHash,
       tenantId,
     },
   });
